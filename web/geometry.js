@@ -71,6 +71,44 @@
   }
 
   /** Calcula puntos, líneas y etiquetas de la malla, en píxeles de la imagen. */
+  const CEJA = {
+    der: { baja: [46, 53, 52, 65, 55], alta: [70, 63, 105, 66, 107] },   // de la cola al inicio
+    izq: { baja: [276, 283, 282, 295, 285], alta: [300, 293, 334, 296, 336] }
+  };
+  /** Eje central de la ceja natural: puntos (a,b) de la cola al inicio, ordenados por a. */
+  function ejeCeja(F, lado) {
+    const c = CEJA[lado];
+    const pts = c.baja.map(function (i, k) {
+      const p = F.aB(i), q = F.aB(c.alta[k]);
+      return { a: (p.a + q.a) / 2, b: (p.b + q.b) / 2 };
+    });
+    pts.sort(function (x, y) { return x.a - y.a; });
+    return pts;
+  }
+  /** Altura b de la ceja natural en la posición a (se prolonga con la pendiente del tramo extremo). */
+  function bEnCeja(pts, a) {
+    const n = pts.length;
+    let i = 0;
+    if (a <= pts[0].a) i = 0; else if (a >= pts[n - 1].a) i = n - 2;
+    else while (a > pts[i + 1].a) i++;
+    const p = pts[i], q = pts[i + 1];
+    const dA = q.a - p.a;
+    if (Math.abs(dA) < 1e-6) return p.b;
+    return p.b + (a - p.a) * (q.b - p.b) / dA;
+  }
+  /** Cruce de una recta (p0→p1) con el eje de la ceja natural. null si no cruza en rango razonable. */
+  function cruceCeja(pts, p0, p1, bMin, bMax) {
+    let prev = null;
+    for (let b = bMax; b >= bMin; b -= 0.004) {
+      const a = puntoEnRecta(p0, p1, b).a;
+      const f = bEnCeja(pts, a) - b;
+      if (prev !== null && (prev.f > 0) !== (f > 0)) return { a: a, b: b };
+      prev = { f: f };
+    }
+    return null;
+  }
+  function limitar(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+
   function calcularMalla(lm, W, H, diseno) {
     const F = marco(lm, W, H);
     const altura = (diseno && diseno.ceja && diseno.ceja.arco_altura) || 'media';
@@ -85,7 +123,10 @@
 
     const bIni = -G.alturaInicio * D;
     const bFin = -G.alturaFinal * D;
-    const bArc = -G.alturaArco * D * fArco;
+    const bArc = -G.alturaArco * D;
+    const cola = diseno && diseno.ceja && diseno.ceja.cola;
+    const dCola = cola === 'descendente' ? 0.04 : cola === 'ascendente' ? -0.04 : 0;
+    const dArco = altura === 'alta' ? -0.05 : altura === 'baja' ? 0.05 : 0;
 
     const lados = {};
     const lineas = [];
@@ -97,20 +138,28 @@
       const iris = F.aB(lado === 'der' ? LM.irisDer : LM.irisIzq);
       const esquina = F.aB(lado === 'der' ? LM.ojoDerExt : LM.ojoIzqExt);
       const aIni = centroNariz + sg * G.inicioSobreNariz * semiNariz;
-      const ini = { a: aIni, b: bIni };
-      const arc = puntoEnRecta(ala, iris, bArc);
-      /* Final: sobre la recta ala→comisura, a la altura de la cola real de la ceja (landmark 46/276),
-         limitada a ±0.15·D de la altura calibrada para no irse con un detector ruidoso. */
-      const cola = F.aB(lado === 'der' ? 46 : 276);
-      const bFinLado = Math.min(bFin + 0.15 * D, Math.max(bFin - 0.15 * D, cola.b));
-      const fin = puntoEnRecta(ala, esquina, bFinLado);
+      /* Cada punto se ancla a la ceja NATURAL: cruce de su recta guía con el eje de la ceja. */
+      const eje = ejeCeja(F, lado);
+      const margen = 0.15 * D;
+      const bI = limitar(bEnCeja(eje, aIni), bIni - margen, bIni + margen);
+      const ini = { a: aIni, b: bI };
+      const cA = cruceCeja(eje, ala, iris, bArc - 0.2 * D, bIni + margen);
+      const bA = limitar((cA ? cA.b : bArc) + dArco * D, bArc - 0.2 * D, bIni);
+      const arc = puntoEnRecta(ala, iris, bA);
+      const cF = cruceCeja(eje, ala, esquina, bFin - margen, bIni + margen);
+      const bF = limitar((cF ? cF.b : bFin) + dCola * D, bFin - margen, bFin + margen);
+      const fin = puntoEnRecta(ala, esquina, bF);
       lados[lado] = { inicio: F.px(ini.a, ini.b), arco: F.px(arc.a, arc.b), final: F.px(fin.a, fin.b), ab: { inicio: ini, arco: arc, final: fin } };
 
-      const arcTop = puntoEnRecta(ala, iris, bArc - 0.09);
-      const finTop = puntoEnRecta(ala, esquina, bFinLado - 0.09);
-      lineas.push({ pts: [F.px(ini.a, ini.b - 0.10), F.px(ini.a, D), F.px(L.a, L.b)] });
-      lineas.push({ pts: [F.px(arcTop.a, arcTop.b), F.px(ala.a, ala.b), F.px(L.a, L.b)] });
-      lineas.push({ pts: [F.px(finTop.a, finTop.b), F.px(ala.a, ala.b), F.px(L.a, L.b)] });
+      /* Rectas rectas desde el punto de los labios (L) hasta pasar el punto: sin quiebre en el ala. */
+      const ext = function (p, dist) {
+        const dx = p.a - L.a, dy = p.b - L.b, n = Math.hypot(dx, dy);
+        return { a: p.a + dx / n * dist, b: p.b + dy / n * dist };
+      };
+      const arcTop = ext(arc, 0.09), finTop = ext(fin, 0.09), iniTop = { a: ini.a, b: ini.b - 0.09 };
+      lineas.push({ pts: [F.px(iniTop.a, iniTop.b), F.px(ini.a, D), F.px(L.a, L.b)] });
+      lineas.push({ pts: [F.px(arcTop.a, arcTop.b), F.px(L.a, L.b)] });
+      lineas.push({ pts: [F.px(finTop.a, finTop.b), F.px(L.a, L.b)] });
 
       const p1 = F.px(ini.a, ini.b - 0.14), p2 = F.px(arc.a, arc.b - 0.12), p3 = F.px(fin.a + sg * 0.02, fin.b - 0.12);
       etiquetas.push({ texto: 'Inicio', x: p1.x, y: p1.y }, { texto: 'Arco', x: p2.x, y: p2.y }, { texto: 'Final', x: p3.x, y: p3.y });
