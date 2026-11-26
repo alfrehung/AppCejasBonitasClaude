@@ -20,9 +20,10 @@ Abre http://localhost:5000. La cámara funciona en `localhost` sin configurar na
 
 ## 2. Usarla en el teléfono
 
-Los navegadores solo dejan usar la cámara con **HTTPS**. Dos caminos:
+Los navegadores solo dejan usar la cámara con **HTTPS**. Tres caminos:
 
-- **Publicarla** en cualquier servicio de Python (Render, Railway, Fly.io…). Ya incluye `Procfile` y `requirements.txt`. Agrega las variables de abajo en el panel del servicio.
+- **GitHub Pages (la forma más rápida de verla, gratis).** En el repositorio: Settings → Pages → Source: *Deploy from a branch* → Branch `main`, carpeta `/ (root)` → Save. En uno o dos minutos queda en `https://TU_USUARIO.github.io/NOMBRE_DEL_REPO/`. Aquí no hay servidor, así que la app usa el **diseño local** (sin Claude) y lo avisa en pantalla. Sirve para probar la cámara, la malla y la pantalla Dibujar.
+- **Publicarla con servidor** (Render, Railway, Fly.io…) para usar Claude. Ya incluye `Procfile` y `requirements.txt`. Agrega las variables de abajo en el panel del servicio.
 - **Túnel temporal** desde tu computador (por ejemplo `cloudflared tunnel --url http://localhost:5000`) y abres la dirección https que te entrega.
 
 Variables de entorno:
