@@ -47,9 +47,9 @@ Variables de entorno:
 
 Se midieron 36 fotogramas del video del filtro y se dedujeron sus reglas. Unidad: distancia entre las comisuras externas de los ojos.
 
-- **Arco:** recta que sale del ala de la nariz y pasa por el **centro del iris**. Su altura es donde esa recta cruza la ceja natural (eje entre borde superior e inferior de la ceja detectada), más un ajuste por `arco_altura`.
-- **Final:** recta desde el ala de la nariz por la comisura externa del ojo. Su altura es donde cruza la ceja natural (prolongada si la ceja es más corta), más un ajuste por `cola`. Inicio y Final ya no se fuerzan a la misma altura.
-- **Inicio:** vertical a 0.57 del semiancho de la nariz; altura de la cabeza de la ceja natural.
+- **Inicio y Final:** misma altura (línea horizontal), tomada de la ceja natural (promedio de cabeza y cola) y limitada a la altura típica del rostro si la ceja es tenue. La recta del Final pasa 0.035 más allá de la comisura externa para no acortar la cola.
+- **Arco:** recta ala→centro del iris; sube sobre la línea Inicio-Final 0.04 / 0.07 / 0.10 (baja/media/alta, unidades de s; 0.1 ≈ 1 cm).
+- **Inicio:** vertical a 0.57 del semiancho de la nariz.
 - Las rectas se dibujan rectas desde el punto de los labios (sin quiebre en el ala).
 - Las alturas naturales se limitan a ±0.15–0.2 de la distancia ojos-base de la nariz sobre el valor calibrado con el filtro.
 - Si el detector no ve la ceja, se usan las alturas calibradas del filtro.

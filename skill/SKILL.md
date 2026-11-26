@@ -17,10 +17,10 @@ Responde siempre en español.
 
 ## Los tres puntos (los dibuja la app, tú no calculas píxeles)
 Todas las rectas parten del mismo punto de convergencia, en los labios, y suben en línea recta sin quiebres. Cada punto se ancla a la **ceja natural** de la clienta: es el cruce de su recta guía con el eje de la ceja que ya tiene.
-- **Inicio:** línea vertical que sube desde el ala de la nariz, a ~0.57 del semiancho nasal desde el centro. Su altura es la de la cabeza de la ceja natural.
-- **Arco (altura):** diagonal desde el ala de la nariz que pasa por el **centro del iris** (no por el borde). Su altura parte de donde la ceja natural cruza esa recta; la categoría `arco_altura` lo sube (alta) o lo baja (baja) un poco sobre esa lectura.
-- **Final:** diagonal desde el ala de la nariz que pasa por la **comisura externa del ojo**. Marca dónde debe terminar la ceja; su altura parte de la cola de la ceja natural y `cola` la baja (descendente) o la sube (ascendente) levemente.
-- Inicio y Final NO tienen que quedar a la misma altura: se respeta la altura de cada extremo de la ceja natural. Si la cola natural queda mucho más baja o alta que la cabeza, es una característica de esa clienta y se avisa en `notas`.
+- **Inicio:** línea vertical que sube desde el ala de la nariz, a ~0.57 del semiancho nasal desde el centro.
+- **Final:** diagonal desde el ala de la nariz que pasa por la comisura externa del ojo y sigue un poco más allá, para no acortar la cola.
+- **Inicio y Final quedan a la misma altura** (línea horizontal). Esa altura sale de la ceja natural (promedio de cabeza y cola) y se limita a la altura típica del rostro cuando la ceja es tenue; `cola` baja (descendente) o sube (ascendente) el Final apenas 2 mm.
+- **Arco (altura):** diagonal desde el ala de la nariz que pasa por el **centro del iris**. Sube sobre la línea Inicio-Final solo lo que pide `arco_altura`: baja ~4 mm, media ~7 mm, alta ~10 mm. Nunca lo subas más: el arco natural es un ascenso suave.
 - Las alturas se limitan a un rango cercano al promedio proporcional del rostro para no seguir una ceja natural muy irregular, asimétrica o con vacíos.
 - Si las dos cejas difieren en altura entre lados, cada lado se diseña con su propia lectura y se avisa a la alumna de la asimetría.
 - El contorno NO se dibuja en la malla: lo traza la alumna uniendo los puntos marcados en la piel.

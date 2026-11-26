@@ -39,6 +39,8 @@
     alturaInicio: 0.413,
     alturaFinal: 0.533,       // el Final queda más alto que el Inicio, igual que en el filtro
     alturaArco: 0.780,
+    subidaArco: { baja: 0.04, media: 0.07, alta: 0.10 },   // cuánto sube el Arco sobre la línea Inicio-Final (unidades de s, ~1 cm = 0.1)
+    colaExtra: 0.035,                                      // la recta del Final pasa un poco más allá de la comisura externa
     factorArco: { baja: 0.85, media: 1.0, alta: 1.15 },
     correccionLargo: 1.15     // el punto 10 está en la frente, no en el nacimiento del cabello
   };
@@ -125,7 +127,7 @@
     const bFin = -G.alturaFinal * D;
     const bArc = -G.alturaArco * D;
     const cola = diseno && diseno.ceja && diseno.ceja.cola;
-    const dCola = cola === 'descendente' ? 0.04 : cola === 'ascendente' ? -0.04 : 0;
+    const dCola = cola === 'descendente' ? 0.02 : cola === 'ascendente' ? -0.02 : 0;
     const dArco = altura === 'alta' ? -0.05 : altura === 'baja' ? 0.05 : 0;
 
     const lados = {};
@@ -140,15 +142,19 @@
       const aIni = centroNariz + sg * G.inicioSobreNariz * semiNariz;
       /* Cada punto se ancla a la ceja NATURAL: cruce de su recta guía con el eje de la ceja. */
       const eje = ejeCeja(F, lado);
-      const margen = 0.15 * D;
-      const bI = limitar(bEnCeja(eje, aIni), bIni - margen, bIni + margen);
-      const ini = { a: aIni, b: bI };
-      const cA = cruceCeja(eje, ala, iris, bArc - 0.2 * D, bIni + margen);
-      const bA = limitar((cA ? cA.b : bArc) + dArco * D, bArc - 0.2 * D, bIni);
-      const arc = puntoEnRecta(ala, iris, bA);
-      const cF = cruceCeja(eje, ala, esquina, bFin - margen, bIni + margen);
-      const bF = limitar((cF ? cF.b : bFin) + dCola * D, bFin - margen, bFin + margen);
-      const fin = puntoEnRecta(ala, esquina, bF);
+      const margen = 0.10 * D;
+      /* Línea de Inicio y Final: MISMA altura (regla profesional). Se toma de la ceja natural
+         (promedio de cabeza y cola) y se limita a la altura típica del rostro por si la ceja es tenue. */
+      const esqFin = { a: esquina.a + sg * G.colaExtra, b: esquina.b };   // la cola llega un poco más allá de la comisura
+      const bCabeza = bEnCeja(eje, aIni);
+      const cF = cruceCeja(eje, ala, esqFin, bIni - 0.2 * D, bIni + 0.2 * D);
+      const bCola = cF ? cF.b : bIni;
+      const bBase = limitar((bCabeza + bCola) / 2, bIni - margen, bIni + margen);
+      const ini = { a: aIni, b: bBase };
+      const bF = bBase + dCola;
+      const fin = puntoEnRecta(ala, esqFin, bF);
+      /* Arco: sube sobre la línea Inicio-Final una cantidad proporcional (en unidades de s), por la recta ala→iris. */
+      const arc = puntoEnRecta(ala, iris, bBase - (G.subidaArco[altura] || G.subidaArco.media));
       lados[lado] = { inicio: F.px(ini.a, ini.b), arco: F.px(arc.a, arc.b), final: F.px(fin.a, fin.b), ab: { inicio: ini, arco: arc, final: fin } };
 
       /* Rectas rectas desde el punto de los labios (L) hasta pasar el punto: sin quiebre en el ala. */
