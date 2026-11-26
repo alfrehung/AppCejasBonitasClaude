@@ -99,11 +99,15 @@
       const aIni = centroNariz + sg * G.inicioSobreNariz * semiNariz;
       const ini = { a: aIni, b: bIni };
       const arc = puntoEnRecta(ala, iris, bArc);
-      const fin = puntoEnRecta(ala, esquina, bFin);
+      /* Final: sobre la recta ala→comisura, a la altura de la cola real de la ceja (landmark 46/276),
+         limitada a ±0.15·D de la altura calibrada para no irse con un detector ruidoso. */
+      const cola = F.aB(lado === 'der' ? 46 : 276);
+      const bFinLado = Math.min(bFin + 0.15 * D, Math.max(bFin - 0.15 * D, cola.b));
+      const fin = puntoEnRecta(ala, esquina, bFinLado);
       lados[lado] = { inicio: F.px(ini.a, ini.b), arco: F.px(arc.a, arc.b), final: F.px(fin.a, fin.b), ab: { inicio: ini, arco: arc, final: fin } };
 
       const arcTop = puntoEnRecta(ala, iris, bArc - 0.09);
-      const finTop = puntoEnRecta(ala, esquina, bFin - 0.09);
+      const finTop = puntoEnRecta(ala, esquina, bFinLado - 0.09);
       lineas.push({ pts: [F.px(ini.a, ini.b - 0.10), F.px(ini.a, D), F.px(L.a, L.b)] });
       lineas.push({ pts: [F.px(arcTop.a, arcTop.b), F.px(ala.a, ala.b), F.px(L.a, L.b)] });
       lineas.push({ pts: [F.px(finTop.a, finTop.b), F.px(ala.a, ala.b), F.px(L.a, L.b)] });

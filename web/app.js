@@ -75,11 +75,19 @@
     });
   }
 
-  function suavizar(prev, nuevo) {
-    const a = 0.6;
-    if (!prev) return nuevo.map(function (p) { return { x: p.x, y: p.y, z: p.z }; });
+  /* Filtro One-Euro: quita temblor en reposo y casi no retrasa cuando el rostro se mueve. */
+  function alfa(fc, dt) { const tau = 1 / (2 * Math.PI * fc); return 1 / (1 + tau / dt); }
+  function suavizar(prev, nuevo, t) {
+    if (!prev) return nuevo.map(function (p) { return { x: p.x, y: p.y, z: p.z, dx: 0, dy: 0, t: t }; });
+    const dt = Math.max(0.001, (t - prev[0].t) / 1000);
     return nuevo.map(function (p, i) {
-      return { x: prev[i].x + (p.x - prev[i].x) * a, y: prev[i].y + (p.y - prev[i].y) * a, z: prev[i].z + (p.z - prev[i].z) * a };
+      const q = prev[i];
+      const vx = (p.x - q.x) / dt, vy = (p.y - q.y) / dt;
+      const ad = alfa(1.0, dt);
+      const dx = q.dx + (vx - q.dx) * ad, dy = q.dy + (vy - q.dy) * ad;
+      const v = Math.hypot(dx, dy);
+      const a = alfa(3.0 + 60 * v, dt);
+      return { x: q.x + (p.x - q.x) * a, y: q.y + (p.y - q.y) * a, z: q.z + (p.z - q.z) * a, dx: dx, dy: dy, t: t };
     });
   }
 
@@ -87,13 +95,14 @@
     const lm = r.multiFaceLandmarks && r.multiFaceLandmarks[0];
     const W = est.dim[0], H = est.dim[1];
     if (!lm || lm.length < 478 || !W) {
-      est.ultimo = null; est.malla = null;
+      est.ultimo = null; est.malla = null; est.vista = null;
       if (!est.midiendo) ponerEstado('mal', 'No veo el rostro');
       $('btn-analizar').disabled = true;
       return;
     }
-    est.ultimo = suavizar(est.ultimo, lm);
     est.tUltimo = performance.now();
+    est.ultimo = suavizar(est.ultimo, lm, est.tUltimo);
+    est.vista = est.snap;
     est.malla = V.calcularMalla(est.ultimo, W, H, est.diseno);
     const med = V.medir(est.ultimo, W, H, { frenteDespejada: $('chk-despejada').checked });
     est.medActual = med;
@@ -133,11 +142,19 @@
     if (!est.activo) return;
     if (video.readyState >= 2 && prepararTrabajo()) {
       if (lienzo.width !== trabajo.width || lienzo.height !== trabajo.height) { lienzo.width = trabajo.width; lienzo.height = trabajo.height; }
-      ctx.drawImage(trabajo, 0, 0);
-      if (est.malla && performance.now() - est.tUltimo < 700) V.dibujarMalla(ctx, est.malla);
+      const conMalla = est.malla && est.vista && performance.now() - est.tUltimo < 700;
+      /* Con malla se muestra el MISMO fotograma que se analizó, así los puntos quedan pegados al rostro. */
+      if (conMalla) {
+        if (lienzo.width !== est.vista.width || lienzo.height !== est.vista.height) { lienzo.width = est.vista.width; lienzo.height = est.vista.height; }
+        ctx.drawImage(est.vista, 0, 0);
+        V.dibujarMalla(ctx, est.malla);
+      } else ctx.drawImage(trabajo, 0, 0);
       if (est.detectorListo && !est.ocupado) {
         est.ocupado = true;
         est.dim = [trabajo.width, trabajo.height];
+        if (!est.snap || est.snap === est.vista) { est.snap = document.createElement('canvas'); }
+        est.snap.width = trabajo.width; est.snap.height = trabajo.height;
+        est.snap.getContext('2d').drawImage(trabajo, 0, 0);
         est.detector.send({ image: trabajo }).catch(function () {}).then(function () { est.ocupado = false; });
       }
       medirLuz();
@@ -396,11 +413,11 @@
   });
   $('btn-girar').addEventListener('click', function () {
     est.giro = (est.giro + 1) % 4; guardar('visaj.giro', String(est.giro));
-    est.ultimo = null; est.malla = null;
+    est.ultimo = null; est.malla = null; est.vista = null;
   });
   $('btn-camara').addEventListener('click', async function () {
     est.camara = est.camara === 'environment' ? 'user' : 'environment'; guardar('visaj.camara', est.camara);
-    est.ultimo = null; est.malla = null;
+    est.ultimo = null; est.malla = null; est.vista = null;
     try { await abrirCamara(); } catch (e) { ponerEstado('mal', mensajeError(e)); }
   });
   $('btn-analizar').addEventListener('click', iniciarMedicion);
