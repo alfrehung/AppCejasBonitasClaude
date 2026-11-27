@@ -40,7 +40,7 @@
     alturaFinal: 0.533,       // el Final queda más alto que el Inicio, igual que en el filtro
     alturaArco: 0.780,
     subidaArco: { baja: 0.04, media: 0.07, alta: 0.10 },   // cuánto sube el Arco sobre la línea Inicio-Final (unidades de s, ~1 cm = 0.1)
-    colaExtra: 0.035,                                      // la recta del Final pasa un poco más allá de la comisura externa
+    colaExtra: 0.015,                                      // la recta del Final pasa un poco más allá de la comisura externa
     factorArco: { baja: 0.85, media: 1.0, alta: 1.15 },
     correccionLargo: 1.15     // el punto 10 está en la frente, no en el nacimiento del cabello
   };
@@ -59,6 +59,10 @@
       rolDeg: Math.atan2(uy, ux) * 180 / Math.PI,
       aB: function (i) {
         const dx = lm[i].x * W - mx, dy = lm[i].y * H - my;
+        return { a: (dx * ux + dy * uy) / s, b: (dx * vx + dy * vy) / s };
+      },
+      aBpx: function (x, y) {
+        const dx = x - mx, dy = y - my;
         return { a: (dx * ux + dy * uy) / s, b: (dx * vx + dy * vy) / s };
       },
       px: function (a, b) {
@@ -117,7 +121,7 @@
   }
   function limitar(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
 
-  function calcularMalla(lm, W, H, diseno) {
+  function calcularMalla(lm, W, H, diseno, extra) {
     const F = marco(lm, W, H);
     const altura = (diseno && diseno.ceja && diseno.ceja.arco_altura) || 'media';
     const fArco = G.factorArco[altura] || 1;
@@ -162,13 +166,20 @@
       /* Arco = punto alto de la curva natural: donde la recta punto de los labios→CENTRO DE LA PUPILA (iris) cruza el borde
          superior de la ceja. Se limita a una subida razonable sobre la línea Inicio-Final; si la ceja es tenue
          y el cruce sale fuera de rango, se usa la subida típica de la categoría. */
-      const sup = bordeSuperior(F, lado);
-      const cA = cruceCeja(sup, L, iris, bBase - 0.20, bBase + 0.02);
+      /* Borde superior: el leído de los píxeles de la ceja (curva visible) si hay; si no, el del detector. */
+      const lei = extra && extra.ceja && extra.ceja[lado];
+      let sup = bordeSuperior(F, lado);
+      let leido = false;
+      if (lei && lei.length >= 8) {
+        sup = lei.map(function (p) { return F.aBpx(p.x, p.y); }).sort(function (x, y) { return x.a - y.a; });
+        leido = true;
+      }
+      const cA = cruceCeja(sup, L, iris, bBase - 0.22, bBase + 0.04);
       const tipica = G.subidaArco[altura] || G.subidaArco.media;
       let subida = cA ? bBase - cA.b : tipica;
-      subida = limitar(subida, 0.03, 0.13);
+      subida = limitar(subida, 0.03, leido ? 0.17 : 0.13);
       /* la categoría de Claude mueve el arco como máximo ±0.02 respecto a la lectura natural */
-      subida = limitar(subida + (tipica - G.subidaArco.media) * 0.5, 0.03, 0.13);
+      subida = limitar(subida + (leido ? 0 : (tipica - G.subidaArco.media) * 0.5), 0.03, leido ? 0.17 : 0.13);
       const arc = puntoEnRecta(L, iris, bBase - subida);
       lados[lado] = { inicio: F.px(ini.a, ini.b), arco: F.px(arc.a, arc.b), final: F.px(fin.a, fin.b), ab: { inicio: ini, arco: arc, final: fin } };
 
@@ -188,7 +199,7 @@
     lineas.push({ pts: [lados.der.final, lados.der.inicio, lados.izq.inicio, lados.izq.final] });
     lineas.push({ pts: [F.px(ejeA, -0.52), F.px(L.a, L.b)] });
 
-    return { s: F.s, rolDeg: F.rolDeg, puntos: { der: pick(lados.der), izq: pick(lados.izq) }, lineas: lineas, etiquetas: etiquetas };
+    return { s: F.s, ceja: lados.der && { der: !!(extra && extra.ceja && extra.ceja.der), izq: !!(extra && extra.ceja && extra.ceja.izq) }, rolDeg: F.rolDeg, puntos: { der: pick(lados.der), izq: pick(lados.izq) }, lineas: lineas, etiquetas: etiquetas };
   }
   function pick(l) { return { inicio: l.inicio, arco: l.arco, final: l.final }; }
 

@@ -129,6 +129,40 @@
     return { x: nx / W, y: ny / H };
   }
 
+  /* Ceja visible: borde superior leído de los píxeles (zona oscura sobre el ojo). null si la ceja es tenue. */
+  function leerCeja(lm, W, H, foto, indices, iPárp) {
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    indices.forEach(function (i) { x0 = Math.min(x0, lm[i].x * W); x1 = Math.max(x1, lm[i].x * W); y0 = Math.min(y0, lm[i].y * H); y1 = Math.max(y1, lm[i].y * H); });
+    const ancho = x1 - x0;
+    const px0 = Math.max(0, Math.floor(x0 - 0.08 * ancho)), px1 = Math.min(W - 1, Math.ceil(x1 + 0.08 * ancho));
+    const py0 = Math.max(0, Math.floor(y0 - 0.22 * ancho)), py1 = Math.min(H - 1, Math.ceil(Math.min(y1 + 0.10 * ancho, lm[iPárp].y * H)));
+    const w = px1 - px0 + 1, h = py1 - py0 + 1;
+    if (w < 20 || h < 8) return null;
+    const d = foto.getContext('2d').getImageData(px0, py0, w, h).data;
+    const lum = new Float32Array(w * h), orden = [];
+    for (let k = 0; k < w * h; k++) { lum[k] = 0.299 * d[k * 4] + 0.587 * d[k * 4 + 1] + 0.114 * d[k * 4 + 2]; orden.push(lum[k]); }
+    orden.sort(function (p, q) { return p - q; });
+    const med = orden[Math.floor(orden.length * 0.6)], oscuro = orden[Math.floor(orden.length * 0.05)];
+    if (med - oscuro < 35) return null;                     // ceja tenue: sin contraste para leerla
+    const umbral = oscuro + (med - oscuro) * 0.45;
+    const pts = [];
+    for (let x = 0; x < w; x++) {
+      for (let y = 0; y < h - 3; y++) {
+        if (lum[y * w + x] < umbral && lum[(y + 1) * w + x] < umbral && lum[(y + 2) * w + x] < umbral && lum[(y + 3) * w + x] < umbral) {
+          pts.push({ x: px0 + x, y: py0 + y }); break;
+        }
+      }
+    }
+    if (pts.length < w * 0.6) return null;
+    /* mediana móvil para quitar pelos sueltos y quedarse con el borde */
+    const sm = [];
+    for (let i = 2; i < pts.length - 2; i += 3) {
+      const ys = [pts[i - 2].y, pts[i - 1].y, pts[i].y, pts[i + 1].y, pts[i + 2].y].sort(function (p, q) { return p - q; });
+      sm.push({ x: pts[i].x, y: ys[2] });
+    }
+    return sm.length >= 8 ? sm : null;
+  }
+
   function alResultado(r) {
     const lm = r.multiFaceLandmarks && r.multiFaceLandmarks[0];
     const W = est.dim[0], H = est.dim[1];
@@ -147,7 +181,12 @@
     if (pd) { est.ultimo[468].x = pd.x; est.ultimo[468].y = pd.y; }
     if (pi) { est.ultimo[473].x = pi.x; est.ultimo[473].y = pi.y; }
     est.pupilaCorregida = !!(pd && pi);
-    est.malla = V.calcularMalla(est.ultimo, W, H, est.diseno);
+    const ceja = {
+      der: leerCeja(est.ultimo, W, H, est.snap, [70, 63, 105, 66, 107, 46, 53, 52, 65, 55], 159),
+      izq: leerCeja(est.ultimo, W, H, est.snap, [300, 293, 334, 296, 336, 276, 283, 282, 295, 285], 386)
+    };
+    est.cejaLeida = ceja;
+    est.malla = V.calcularMalla(est.ultimo, W, H, est.diseno, { ceja: ceja });
     const med = V.medir(est.ultimo, W, H, { frenteDespejada: $('chk-despejada').checked });
     est.medActual = med;
     actualizarEstado(med);
@@ -192,6 +231,10 @@
         if (lienzo.width !== est.vista.width || lienzo.height !== est.vista.height) { lienzo.width = est.vista.width; lienzo.height = est.vista.height; }
         ctx.drawImage(est.vista, 0, 0);
         V.dibujarMalla(ctx, est.malla);
+        if (/depurar/.test(location.search) && est.cejaLeida) {
+          ctx.fillStyle = '#ffe14d';
+          ['der', 'izq'].forEach(function (l) { (est.cejaLeida[l] || []).forEach(function (p) { ctx.fillRect(p.x - 1, p.y - 1, 3, 3); }); });
+        }
       } else ctx.drawImage(trabajo, 0, 0);
       if (est.detectorListo && !est.ocupado) {
         est.ocupado = true;
@@ -313,7 +356,7 @@
     $('medicion').hidden = true;
     est.bloqueoAnalisis = false;
     est.diseno = d;
-    if (est.ultimo) est.malla = V.calcularMalla(est.ultimo, est.dim[0], est.dim[1], d);
+    if (est.ultimo) est.malla = V.calcularMalla(est.ultimo, est.dim[0], est.dim[1], d, { ceja: est.cejaLeida });
     mostrarDiseno(d);
   }
 
@@ -391,7 +434,7 @@
     const g = foto.getContext('2d');
     g.drawImage(trabajo, 0, 0);
     const tono = leerTono(est.ultimo, W, H);
-    V.dibujarMalla(g, V.calcularMalla(est.ultimo, W, H, est.diseno));
+    V.dibujarMalla(g, V.calcularMalla(est.ultimo, W, H, est.diseno, { ceja: est.cejaLeida }));
     est.tono = tono;
     if (tono) {
       pintarPincelada(tono.rgb);
