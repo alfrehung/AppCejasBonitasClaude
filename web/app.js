@@ -91,6 +91,44 @@
     });
   }
 
+  /* Pupila real: el detector da el centro del iris con error de unos píxeles (más si la mirada es oblicua),
+     así que se corrige buscando el centro de la zona oscura (pupila + iris) dentro del ojo abierto. */
+  function refinarPupila(lm, W, H, lienzoFoto, iIris, iAnillo, iSup, iInf) {
+    const c = lm[iIris];
+    const cx = c.x * W, cy = c.y * H;
+    let ri = 0;
+    iAnillo.forEach(function (i) { ri += Math.hypot(lm[i].x * W - cx, lm[i].y * H - cy); });
+    ri /= iAnillo.length;
+    if (!(ri > 2)) return null;
+    const x0 = Math.max(0, Math.floor(cx - 1.7 * ri)), x1 = Math.min(W - 1, Math.ceil(cx + 1.7 * ri));
+    const yTop = Math.max(0, Math.floor(Math.max(cy - 1.7 * ri, lm[iSup].y * H)));
+    const yBot = Math.min(H - 1, Math.ceil(Math.min(cy + 1.7 * ri, lm[iInf].y * H)));
+    const w = x1 - x0 + 1, h = yBot - yTop + 1;
+    if (w < 6 || h < 4) return null;
+    const d = lienzoFoto.getContext('2d').getImageData(x0, yTop, w, h).data;
+    const lum = new Float32Array(w * h);
+    let mn = 255, mx = 0;
+    for (let k = 0; k < w * h; k++) {
+      const v = 0.299 * d[k * 4] + 0.587 * d[k * 4 + 1] + 0.114 * d[k * 4 + 2];
+      lum[k] = v; if (v < mn) mn = v; if (v > mx) mx = v;
+    }
+    if (mx - mn < 25) return null;                       // sin contraste: no se corrige
+    const umbral = mn + (mx - mn) * 0.35;
+    let sx = 0, sy = 0, sw = 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const v = lum[y * w + x];
+      if (v > umbral) continue;
+      const px = x + x0, py = y + yTop;
+      if (Math.hypot(px - cx, py - cy) > 1.5 * ri) continue;
+      const peso = umbral - v;
+      sx += px * peso; sy += py * peso; sw += peso;
+    }
+    if (sw <= 0) return null;
+    const nx = sx / sw, ny = sy / sw;
+    if (Math.hypot(nx - cx, ny - cy) > 1.0 * ri) return null;   // salto sospechoso: se deja el del detector
+    return { x: nx / W, y: ny / H };
+  }
+
   function alResultado(r) {
     const lm = r.multiFaceLandmarks && r.multiFaceLandmarks[0];
     const W = est.dim[0], H = est.dim[1];
@@ -103,6 +141,12 @@
     est.tUltimo = performance.now();
     est.ultimo = suavizar(est.ultimo, lm, est.tUltimo);
     est.vista = est.snap;
+    /* corrige el centro de la pupila sobre el mismo fotograma analizado (z se conserva) */
+    const pd = refinarPupila(est.ultimo, W, H, est.snap, 468, [469, 470, 471, 472], 159, 145);
+    const pi = refinarPupila(est.ultimo, W, H, est.snap, 473, [474, 475, 476, 477], 386, 374);
+    if (pd) { est.ultimo[468].x = pd.x; est.ultimo[468].y = pd.y; }
+    if (pi) { est.ultimo[473].x = pi.x; est.ultimo[473].y = pi.y; }
+    est.pupilaCorregida = !!(pd && pi);
     est.malla = V.calcularMalla(est.ultimo, W, H, est.diseno);
     const med = V.medir(est.ultimo, W, H, { frenteDespejada: $('chk-despejada').checked });
     est.medActual = med;
