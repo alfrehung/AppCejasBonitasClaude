@@ -153,23 +153,23 @@
          (promedio de cabeza y cola) y se limita a la altura típica del rostro por si la ceja es tenue. */
       const esqFin = { a: esquina.a + sg * G.colaExtra, b: esquina.b };   // la cola llega un poco más allá de la comisura
       const bCabeza = bEnCeja(eje, aIni);
-      const cF = cruceCeja(eje, ala, esqFin, bIni - 0.2 * D, bIni + 0.2 * D);
+      const cF = cruceCeja(eje, L, esqFin, bIni - 0.2 * D, bIni + 0.2 * D);
       const bCola = cF ? cF.b : bIni;
       const bBase = limitar((bCabeza + bCola) / 2, bIni - margen, bIni + margen);
       const ini = { a: aIni, b: bBase };
       const bF = bBase + dCola;
-      const fin = puntoEnRecta(ala, esqFin, bF);
-      /* Arco = punto alto de la curva natural: donde la recta ala→CENTRO DE LA PUPILA (iris) cruza el borde
+      const fin = puntoEnRecta(L, esqFin, bF);
+      /* Arco = punto alto de la curva natural: donde la recta punto de los labios→CENTRO DE LA PUPILA (iris) cruza el borde
          superior de la ceja. Se limita a una subida razonable sobre la línea Inicio-Final; si la ceja es tenue
          y el cruce sale fuera de rango, se usa la subida típica de la categoría. */
       const sup = bordeSuperior(F, lado);
-      const cA = cruceCeja(sup, ala, iris, bBase - 0.20, bBase + 0.02);
+      const cA = cruceCeja(sup, L, iris, bBase - 0.20, bBase + 0.02);
       const tipica = G.subidaArco[altura] || G.subidaArco.media;
       let subida = cA ? bBase - cA.b : tipica;
       subida = limitar(subida, 0.03, 0.13);
       /* la categoría de Claude mueve el arco como máximo ±0.02 respecto a la lectura natural */
       subida = limitar(subida + (tipica - G.subidaArco.media) * 0.5, 0.03, 0.13);
-      const arc = puntoEnRecta(ala, iris, bBase - subida);
+      const arc = puntoEnRecta(L, iris, bBase - subida);
       lados[lado] = { inicio: F.px(ini.a, ini.b), arco: F.px(arc.a, arc.b), final: F.px(fin.a, fin.b), ab: { inicio: ini, arco: arc, final: fin } };
 
       /* Rectas rectas desde el punto de los labios (L) hasta pasar el punto: sin quiebre en el ala. */
