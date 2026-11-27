@@ -58,6 +58,9 @@ Todos estos valores están en `web/geometry.js`, en el objeto `G`, para que la v
 
 `arco_altura` (baja, media, alta) que devuelve Claude multiplica la altura del Arco por 0.85, 1.0 o 1.15. La `cola` solo orienta el trazo: el punto Final se mantiene en la altura calibrada con el filtro.
 
+### Líneas sobre la superficie (como el hilo)
+La malla ya no se calcula sobre la imagen plana. `marco3D` (en `web/geometry.js`) arma un marco propio del rostro con la profundidad (z) del detector: eje de los ojos, eje hacia la boca y la normal. Los puntos Inicio, Arco y Final se calculan en ese marco, así el giro y la inclinación de la cabeza (cámara desde arriba o de lado) no deforman las proporciones. Cada recta guía se levanta a la superficie del rostro (profundidad interpolada de los puntos cercanos) y se proyecta a la imagen, por lo que se curva ligeramente en la frente y la sien, como el hilo. La profundidad del detector es aproximada.
+
 ## 5. Medidas que se envían a Claude (nunca la foto)
 
 | Medida | Cómo se calcula |

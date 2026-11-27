@@ -77,6 +77,80 @@
   }
 
   /** Calcula puntos, líneas y etiquetas de la malla, en píxeles de la imagen. */
+
+  /* ---------- Marco 3D del rostro: las líneas se calculan sobre la superficie (como el hilo) ---------- */
+  function marco3D(lm, W, H) {
+    const P = function (i) { return { x: lm[i].x * W, y: lm[i].y * H, z: lm[i].z * W }; };
+    const sub = function (p, q) { return { x: p.x - q.x, y: p.y - q.y, z: p.z - q.z }; };
+    const dot = function (p, q) { return p.x * q.x + p.y * q.y + p.z * q.z; };
+    const norm = function (p) { return Math.sqrt(dot(p, p)); };
+    const esc = function (p, k) { return { x: p.x * k, y: p.y * k, z: p.z * k }; };
+    const p33 = P(LM.ojoDerExt), p263 = P(LM.ojoIzqExt);
+    const O = { x: (p33.x + p263.x) / 2, y: (p33.y + p263.y) / 2, z: (p33.z + p263.z) / 2 };
+    const eje = sub(p263, p33), s3 = norm(eje);
+    const u = esc(eje, 1 / s3);
+    const b0 = P(LM.labioSup), b1 = P(LM.labioInt);
+    const M = { x: (b0.x + b1.x) / 2, y: (b0.y + b1.y) / 2, z: (b0.z + b1.z) / 2 };
+    let vr = sub(M, O);
+    vr = sub(vr, esc(u, dot(vr, u)));
+    const v = esc(vr, 1 / norm(vr));
+    const n = { x: u.y * v.z - u.z * v.y, y: u.z * v.x - u.x * v.z, z: u.x * v.y - u.y * v.x };
+    const abc = function (p) { const d = sub(p, O); return { a: dot(d, u) / s3, b: dot(d, v) / s3, c: dot(d, n) / s3 }; };
+    /* superficie: profundidad c en (a,b) por interpolación con los puntos del detector más cercanos */
+    const SA = [], SB = [], SC = [];
+    for (let i = 0; i < 478; i++) { const q = abc(P(i)); SA.push(q.a); SB.push(q.b); SC.push(Math.max(-0.8, Math.min(0.8, q.c))); }
+    const prof = function (a, b) {
+      const K = 6, bd = [], bi = [];
+      for (let i = 0; i < 478; i++) {
+        const d = (SA[i] - a) * (SA[i] - a) + (SB[i] - b) * (SB[i] - b);
+        if (bd.length < K || d < bd[bd.length - 1]) {
+          let j = bd.length; bd.push(d); bi.push(i);
+          while (j > 0 && bd[j - 1] > d) { bd[j] = bd[j - 1]; bi[j] = bi[j - 1]; j--; }
+          bd[j] = d; bi[j] = i;
+          if (bd.length > K) { bd.pop(); bi.pop(); }
+        }
+      }
+      let sw = 0, sc = 0;
+      for (let k = 0; k < bd.length; k++) { const w = 1 / (bd[k] + 1e-4); sw += w; sc += w * SC[bi[k]]; }
+      return sc / sw;
+    };
+    const proy = function (a, b, c) {
+      return { x: O.x + s3 * (a * u.x + b * v.x + c * n.x), y: O.y + s3 * (a * u.y + b * v.y + c * n.y) };
+    };
+    const px = function (a, b) { return proy(a, b, prof(a, b)); };
+    const s2 = Math.hypot(p263.x - p33.x, p263.y - p33.y);
+    return {
+      s: s2, s3: s3,
+      rolDeg: Math.atan2(u.y, u.x) * 180 / Math.PI,
+      aB: function (i) { const q = abc(P(i)); return { a: q.a, b: q.b }; },
+      aBpx: function (x, y) {
+        const dx = (x - O.x) / s3, dy = (y - O.y) / s3;
+        let a = 0, b = 0, c = 0;
+        for (let it = 0; it < 4; it++) {
+          const rx = dx - c * n.x, ry = dy - c * n.y;
+          const det = u.x * v.y - v.x * u.y;
+          if (Math.abs(det) < 1e-6) break;
+          a = (rx * v.y - v.x * ry) / det; b = (u.x * ry - u.y * rx) / det;
+          c = prof(a, b);
+        }
+        return { a: a, b: b };
+      },
+      px: px,
+      /** Recta (o quebrada) definida en el marco del rostro, llevada a la superficie y proyectada. */
+      ruta: function (pts, n) {
+        const out = [];
+        for (let i = 0; i < pts.length - 1; i++) {
+          for (let k = 0; k < n; k++) {
+            const t = k / n;
+            out.push(px(pts[i].a + t * (pts[i + 1].a - pts[i].a), pts[i].b + t * (pts[i + 1].b - pts[i].b)));
+          }
+        }
+        out.push(px(pts[pts.length - 1].a, pts[pts.length - 1].b));
+        return out;
+      }
+    };
+  }
+
   const CEJA = {
     der: { baja: [46, 53, 52, 65, 55], alta: [70, 63, 105, 66, 107] },   // de la cola al inicio
     izq: { baja: [276, 283, 282, 295, 285], alta: [300, 293, 334, 296, 336] }
@@ -122,7 +196,7 @@
   function limitar(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
 
   function calcularMalla(lm, W, H, diseno, extra) {
-    const F = marco(lm, W, H);
+    const F = marco3D(lm, W, H);
     const altura = (diseno && diseno.ceja && diseno.ceja.arco_altura) || 'media';
     const fArco = G.factorArco[altura] || 1;
     const D = F.aB(LM.baseNariz).b;
@@ -189,15 +263,15 @@
         return { a: p.a + dx / n * dist, b: p.b + dy / n * dist };
       };
       const arcTop = ext(arc, 0.09), finTop = ext(fin, 0.09), iniTop = { a: ini.a, b: ini.b - 0.09 };
-      lineas.push({ pts: [F.px(iniTop.a, iniTop.b), F.px(ini.a, D), F.px(L.a, L.b)] });
-      lineas.push({ pts: [F.px(arcTop.a, arcTop.b), F.px(L.a, L.b)] });
-      lineas.push({ pts: [F.px(finTop.a, finTop.b), F.px(L.a, L.b)] });
+      lineas.push({ pts: F.ruta([iniTop, { a: ini.a, b: D }, L], 10) });
+      lineas.push({ pts: F.ruta([arcTop, L], 14) });
+      lineas.push({ pts: F.ruta([finTop, L], 14) });
 
       const p1 = F.px(ini.a, ini.b - 0.14), p2 = F.px(arc.a, arc.b - 0.12), p3 = F.px(fin.a + sg * 0.02, fin.b - 0.12);
       etiquetas.push({ texto: 'Inicio', x: p1.x, y: p1.y }, { texto: 'Arco', x: p2.x, y: p2.y }, { texto: 'Final', x: p3.x, y: p3.y });
     });
-    lineas.push({ pts: [lados.der.final, lados.der.inicio, lados.izq.inicio, lados.izq.final] });
-    lineas.push({ pts: [F.px(ejeA, -0.52), F.px(L.a, L.b)] });
+    lineas.push({ pts: F.ruta([lados.der.ab.final, lados.der.ab.inicio, lados.izq.ab.inicio, lados.izq.ab.final], 12) });
+    lineas.push({ pts: F.ruta([{ a: ejeA, b: -0.52 }, L], 14) });
 
     return { s: F.s, ceja: lados.der && { der: !!(extra && extra.ceja && extra.ceja.der), izq: !!(extra && extra.ceja && extra.ceja.izq) }, rolDeg: F.rolDeg, puntos: { der: pick(lados.der), izq: pick(lados.izq) }, lineas: lineas, etiquetas: etiquetas };
   }
