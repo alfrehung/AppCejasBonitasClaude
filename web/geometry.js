@@ -87,6 +87,12 @@
     pts.sort(function (x, y) { return x.a - y.a; });
     return pts;
   }
+  /** Contorno superior de la ceja natural (puntos a,b de la cola al inicio, ordenados por a). */
+  function bordeSuperior(F, lado) {
+    const pts = CEJA[lado].alta.map(function (i) { return F.aB(i); });
+    pts.sort(function (x, y) { return x.a - y.a; });
+    return pts;
+  }
   /** Altura b de la ceja natural en la posición a (se prolonga con la pendiente del tramo extremo). */
   function bEnCeja(pts, a) {
     const n = pts.length;
@@ -153,8 +159,17 @@
       const ini = { a: aIni, b: bBase };
       const bF = bBase + dCola;
       const fin = puntoEnRecta(ala, esqFin, bF);
-      /* Arco: sube sobre la línea Inicio-Final una cantidad proporcional (en unidades de s), por la recta ala→iris. */
-      const arc = puntoEnRecta(ala, iris, bBase - (G.subidaArco[altura] || G.subidaArco.media));
+      /* Arco = punto alto de la curva natural: donde la recta ala→CENTRO DE LA PUPILA (iris) cruza el borde
+         superior de la ceja. Se limita a una subida razonable sobre la línea Inicio-Final; si la ceja es tenue
+         y el cruce sale fuera de rango, se usa la subida típica de la categoría. */
+      const sup = bordeSuperior(F, lado);
+      const cA = cruceCeja(sup, ala, iris, bBase - 0.20, bBase + 0.02);
+      const tipica = G.subidaArco[altura] || G.subidaArco.media;
+      let subida = cA ? bBase - cA.b : tipica;
+      subida = limitar(subida, 0.03, 0.13);
+      /* la categoría de Claude mueve el arco como máximo ±0.02 respecto a la lectura natural */
+      subida = limitar(subida + (tipica - G.subidaArco.media) * 0.5, 0.03, 0.13);
+      const arc = puntoEnRecta(ala, iris, bBase - subida);
       lados[lado] = { inicio: F.px(ini.a, ini.b), arco: F.px(arc.a, arc.b), final: F.px(fin.a, fin.b), ab: { inicio: ini, arco: arc, final: fin } };
 
       /* Rectas rectas desde el punto de los labios (L) hasta pasar el punto: sin quiebre en el ala. */

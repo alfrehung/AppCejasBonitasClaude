@@ -15,19 +15,28 @@ Responde siempre en español.
 - Como la clienta está acostada, la imagen puede venir rotada. No asumas que "arriba" en la imagen es la frente: usa la línea de los ojos como referencia y exige que la app ya haya corregido la rotación.
 - La guía de forma de ceja es la de Ivonne Peraldi ("Hablemos de Imagen"), y se ajusta a las proporciones propias de cada rostro.
 
+## Anatomía: partes que la app debe reconocer en la imagen de la cámara
+La app ubica estas referencias con el detector facial (rostro de frente, ojos abiertos, rotación ya corregida). Todo se mide en unidades del rostro, no en píxeles, así sirve con cualquier distancia de cámara.
+- **Línea de los ojos:** recta entre las comisuras externas de ambos ojos. Es el eje horizontal de referencia.
+- **Centro de la pupila (iris):** el punto central del círculo oscuro del ojo, no su borde. La recta del Arco pasa exactamente por aquí.
+- **Comisura externa del ojo:** el extremo del ojo hacia la sien, donde se juntan párpado superior e inferior. La recta del Final pasa por aquí.
+- **Ala de la nariz:** el borde exterior de la fosa nasal, donde nace la recta guía. Las tres rectas parten de los labios, suben por el ala y siguen hasta la ceja.
+- **Ceja natural:** el vello o sombra de la ceja que ya tiene la clienta. Tiene **cabeza** (extremo interno, junto al puente de la nariz), **cuerpo**, **curva o punto alto** (donde la ceja llega a su máxima altura y empieza a bajar) y **cola** (extremo externo, hacia la sien).
+- **Borde superior de la ceja:** contorno de arriba. Ahí se lee la curva natural.
+
 ## Los tres puntos (los dibuja la app, tú no calculas píxeles)
-Todas las rectas parten del mismo punto de convergencia, en los labios, y suben en línea recta sin quiebres. Cada punto se ancla a la **ceja natural** de la clienta: es el cruce de su recta guía con el eje de la ceja que ya tiene.
-- **Inicio:** línea vertical que sube desde el ala de la nariz, a ~0.57 del semiancho nasal desde el centro.
-- **Final:** diagonal desde el ala de la nariz que pasa por la comisura externa del ojo y sigue un poco más allá, para no acortar la cola.
-- **Inicio y Final quedan a la misma altura** (línea horizontal). Esa altura sale de la ceja natural (promedio de cabeza y cola) y se limita a la altura típica del rostro cuando la ceja es tenue; `cola` baja (descendente) o sube (ascendente) el Final apenas 2 mm.
-- **Arco (altura):** diagonal desde el ala de la nariz que pasa por el **centro del iris**. Sube sobre la línea Inicio-Final solo lo que pide `arco_altura`: baja ~4 mm, media ~7 mm, alta ~10 mm. Nunca lo subas más: el arco natural es un ascenso suave.
-- Las alturas se limitan a un rango cercano al promedio proporcional del rostro para no seguir una ceja natural muy irregular, asimétrica o con vacíos.
+Todas las rectas suben rectas, sin quiebres, desde el punto de convergencia en los labios.
+- **Inicio:** línea vertical que sube por el ala de la nariz hasta la cabeza de la ceja (a ~0.57 del semiancho nasal desde el centro).
+- **Final:** diagonal que pasa por la comisura externa del ojo y sigue un poco más allá, para no acortar la cola.
+- **Inicio y Final quedan a la misma altura** (línea horizontal). Esa altura sale de la ceja natural (promedio de cabeza y cola) y se limita a la altura típica del rostro cuando la ceja es tenue. `cola` baja (descendente) o sube (ascendente) el Final apenas 2 mm.
+- **Arco (punto alto de la curva):** diagonal que pasa por el **centro de la pupila**. El punto está donde esa recta cruza el borde superior de la ceja natural, o sea la curva natural. Sube sobre la línea Inicio-Final lo que lea la ceja, con un mínimo de ~3 mm y un máximo de ~13 mm. La categoría `arco_altura` solo lo afina unos milímetros (baja, media y alta equivalen a una subida típica de ~4, ~7 y ~10 mm). El arco natural es un ascenso suave: nunca lo subas más.
+- Si la ceja es tenue o escasa (la razón de ser del visajismo), no hay curva que leer: se usa la subida típica de la categoría sobre la línea Inicio-Final, y se avisa en `notas` que el trazo es proporcional y no sigue la ceja natural.
 - Si las dos cejas difieren en altura entre lados, cada lado se diseña con su propia lectura y se avisa a la alumna de la asimetría.
 - El contorno NO se dibuja en la malla: lo traza la alumna uniendo los puntos marcados en la piel.
 
 ### Cómo comprobar que el trazo es coherente con la lectura natural (para tus `notas`)
-- La cola (Final) no debe quedar más corta que la ceja natural sin motivo: si la recta del Final cae antes que el extremo natural, dilo; si cae después, la ceja se alarga hasta la recta.
-- Arco más alto que la cabeza de la ceja y más bajo que lo que pide la forma de rostro: menciona el compromiso.
+- La cola (Final) no debe quedar más corta que la ceja natural sin motivo: si la recta cae antes que el extremo natural, dilo; si cae después, la ceja se alarga hasta la recta.
+- Si el Arco queda más alto o más bajo que la curva natural por la categoría que elegiste, menciona el compromiso.
 - Si hay distancia ceja-ojo muy distinta entre lados, no los uniformes.
 
 ## Entrada esperada (JSON de la app)
