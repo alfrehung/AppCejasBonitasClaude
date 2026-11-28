@@ -40,7 +40,8 @@
     alturaFinal: 0.533,       // el Final queda más alto que el Inicio, igual que en el filtro
     alturaArco: 0.780,
     subidaArco: { baja: 0.04, media: 0.07, alta: 0.10 },   // cuánto sube el Arco sobre la línea Inicio-Final (unidades de s, ~1 cm = 0.1)
-    colaExtra: 0.015,                                      // la recta del Final pasa un poco más allá de la comisura externa
+    alzar: 1,                                              // 1 = rectas sobre la superficie (profundidad del detector); 0 = plano del rostro
+    colaExtra: 0,                                      // la recta del Final pasa un poco más allá de la comisura externa
     factorArco: { baja: 0.85, media: 1.0, alta: 1.15 },
     correccionLargo: 1.15     // el punto 10 está en la frente, no en el nacimiento del cabello
   };
@@ -117,7 +118,7 @@
     const proy = function (a, b, c) {
       return { x: O.x + s3 * (a * u.x + b * v.x + c * n.x), y: O.y + s3 * (a * u.y + b * v.y + c * n.y) };
     };
-    const px = function (a, b) { return proy(a, b, prof(a, b)); };
+    const px = function (a, b) { return proy(a, b, G.alzar * prof(a, b)); };
     const s2 = Math.hypot(p263.x - p33.x, p263.y - p33.y);
     return {
       s: s2, s3: s3,
@@ -131,7 +132,7 @@
           const det = u.x * v.y - v.x * u.y;
           if (Math.abs(det) < 1e-6) break;
           a = (rx * v.y - v.x * ry) / det; b = (u.x * ry - u.y * rx) / det;
-          c = prof(a, b);
+          c = G.alzar * prof(a, b);
         }
         return { a: a, b: b };
       },
@@ -223,16 +224,31 @@
       const ala = { a: ala0.a + sg * G.alaDesplazamiento, b: ala0.b };
       const iris = F.aB(lado === 'der' ? LM.irisDer : LM.irisIzq);
       const esquina = F.aB(lado === 'der' ? LM.ojoDerExt : LM.ojoIzqExt);
-      const aIni = centroNariz + sg * G.inicioSobreNariz * semiNariz;
+      /* Inicio: vertical que sube por el ala de la nariz y pasa por la comisura INTERNA del ojo (lagrimal). */
+      const aIni = F.aB(lado === 'der' ? LM.ojoDerInt : LM.ojoIzqInt).a;
       /* Cada punto se ancla a la ceja NATURAL: cruce de su recta guía con el eje de la ceja. */
       const eje = ejeCeja(F, lado);
-      const margen = 0.10 * D;
+      const lei = extra && extra.ceja && extra.ceja[lado];
+      const margen = (lei ? 0.22 : 0.10) * D;
       /* Línea de Inicio y Final: MISMA altura (regla profesional). Se toma de la ceja natural
          (promedio de cabeza y cola) y se limita a la altura típica del rostro por si la ceja es tenue. */
       const esqFin = { a: esquina.a + sg * G.colaExtra, b: esquina.b };   // la cola llega un poco más allá de la comisura
-      const bCabeza = bEnCeja(eje, aIni);
-      const cF = cruceCeja(eje, L, esqFin, bIni - 0.2 * D, bIni + 0.2 * D);
-      const bCola = cF ? cF.b : bIni;
+      /* Cabeza y cola de la ceja: si se leyó de los píxeles, se toman los extremos reales (centro de la ceja);
+         si no, el eje estimado por el detector. */
+      let bCabeza, bCola;
+      const cl = lei && lei.length >= 8 && lei[0].yb !== undefined
+        ? lei.map(function (p) { return F.aBpx(p.x, (p.y + p.yb) / 2); }).sort(function (x, y) { return x.a - y.a; }) : null;
+      if (cl) {
+        /* extremos: mediana de b en el 20 % final de cada lado de la ceja (robusta a pelos y sombras sueltas) */
+        const m = Math.max(3, Math.round(cl.length * 0.2));
+        const prom = function (arr) { const s = arr.map(function (p) { return p.b; }).sort(function (x, y) { return x - y; }); return s[Math.floor(s.length / 2)]; };
+        const medial = sg < 0 ? cl.slice(cl.length - m) : cl.slice(0, m), lateral = sg < 0 ? cl.slice(0, m) : cl.slice(cl.length - m);
+        bCabeza = prom(medial); bCola = prom(lateral);
+      } else {
+        bCabeza = bEnCeja(eje, aIni);
+        const cF = cruceCeja(eje, L, esqFin, bIni - 0.2 * D, bIni + 0.2 * D);
+        bCola = cF ? cF.b : bIni;
+      }
       const bBase = limitar((bCabeza + bCola) / 2, bIni - margen, bIni + margen);
       const ini = { a: aIni, b: bBase };
       const bF = bBase + dCola;
@@ -241,7 +257,6 @@
          superior de la ceja. Se limita a una subida razonable sobre la línea Inicio-Final; si la ceja es tenue
          y el cruce sale fuera de rango, se usa la subida típica de la categoría. */
       /* Borde superior: el leído de los píxeles de la ceja (curva visible) si hay; si no, el del detector. */
-      const lei = extra && extra.ceja && extra.ceja[lado];
       let sup = bordeSuperior(F, lado);
       let leido = false;
       if (lei && lei.length >= 8) {
@@ -255,7 +270,8 @@
       /* la categoría de Claude mueve el arco como máximo ±0.02 respecto a la lectura natural */
       subida = limitar(subida + (leido ? 0 : (tipica - G.subidaArco.media) * 0.5), 0.03, leido ? 0.17 : 0.13);
       const arc = puntoEnRecta(L, iris, bBase - subida);
-      lados[lado] = { inicio: F.px(ini.a, ini.b), arco: F.px(arc.a, arc.b), final: F.px(fin.a, fin.b), ab: { inicio: ini, arco: arc, final: fin } };
+      const dbg = { bCabeza: bCabeza, bCola: bCola, bBase: bBase, bIni: bIni, leido: !!cl, D: D };
+      lados[lado] = { dbg: dbg, inicio: F.px(ini.a, ini.b), arco: F.px(arc.a, arc.b), final: F.px(fin.a, fin.b), ab: { inicio: ini, arco: arc, final: fin } };
 
       /* Rectas rectas desde el punto de los labios (L) hasta pasar el punto: sin quiebre en el ala. */
       const ext = function (p, dist) {
@@ -273,7 +289,7 @@
     lineas.push({ pts: F.ruta([lados.der.ab.final, lados.der.ab.inicio, lados.izq.ab.inicio, lados.izq.ab.final], 12) });
     lineas.push({ pts: F.ruta([{ a: ejeA, b: -0.52 }, L], 14) });
 
-    return { s: F.s, ceja: lados.der && { der: !!(extra && extra.ceja && extra.ceja.der), izq: !!(extra && extra.ceja && extra.ceja.izq) }, rolDeg: F.rolDeg, puntos: { der: pick(lados.der), izq: pick(lados.izq) }, lineas: lineas, etiquetas: etiquetas };
+    return { s: F.s, ceja: lados.der && { der: !!(extra && extra.ceja && extra.ceja.der), izq: !!(extra && extra.ceja && extra.ceja.izq) }, rolDeg: F.rolDeg, puntos: { der: pick(lados.der), izq: pick(lados.izq) }, dbg: { der: lados.der.dbg, izq: lados.izq.dbg }, lineas: lineas, etiquetas: etiquetas };
   }
   function pick(l) { return { inicio: l.inicio, arco: l.arco, final: l.final }; }
 

@@ -149,7 +149,9 @@
     for (let x = 0; x < w; x++) {
       for (let y = 0; y < h - 3; y++) {
         if (lum[y * w + x] < umbral && lum[(y + 1) * w + x] < umbral && lum[(y + 2) * w + x] < umbral && lum[(y + 3) * w + x] < umbral) {
-          pts.push({ x: px0 + x, y: py0 + y }); break;
+          let yb = y + 3;
+          while (yb < h - 1 && !(lum[yb * w + x] > umbral && lum[(yb + 1) * w + x] > umbral)) yb++;
+          pts.push({ x: px0 + x, y: py0 + y, yb: py0 + yb }); break;
         }
       }
     }
@@ -158,7 +160,8 @@
     const sm = [];
     for (let i = 2; i < pts.length - 2; i += 3) {
       const ys = [pts[i - 2].y, pts[i - 1].y, pts[i].y, pts[i + 1].y, pts[i + 2].y].sort(function (p, q) { return p - q; });
-      sm.push({ x: pts[i].x, y: ys[2] });
+      const yb = [pts[i - 2].yb, pts[i - 1].yb, pts[i].yb, pts[i + 1].yb, pts[i + 2].yb].sort(function (p, q) { return p - q; });
+      sm.push({ x: pts[i].x, y: ys[2], yb: yb[2] });
     }
     return sm.length >= 8 ? sm : null;
   }
